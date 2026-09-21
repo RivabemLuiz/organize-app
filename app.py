@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import difflib
 import random
+import os # NOVO: Biblioteca para lidar com ficheiros do sistema
 
 # ==========================================
 # 1. CONFIGURAÇÃO E DESIGN MODO ESCURO
@@ -14,50 +15,35 @@ st.set_page_config(page_title="Organizé", page_icon="💸", layout="wide", init
 st.markdown('''
 <style>
     .stApp { background-color: #0E1117; }
-    
-    /* Barra lateral */
-    [data-testid="stSidebar"] {
-        background-color: #050505;
-        border-right: 1px solid #1C2621;
-    }
-    
-    /* Novo Design dos Botões de Navegação */
-    [data-testid="stSidebar"] button {
-        border-radius: 8px !important;
-        padding: 15px !important;
-        border: none !important;
-        display: flex !important;
-        justify-content: flex-start !important;
-        transition: background-color 0.3s !important;
-    }
-    
-    [data-testid="stSidebar"] button p {
-        font-size: 1.25rem !important;
-        margin: 0 !important;
-    }
-
-    [data-testid="stSidebar"] button[kind="secondary"] {
-        background-color: transparent !important;
-        color: #e2e8f0 !important;
-    }
-    
-    [data-testid="stSidebar"] button[kind="secondary"]:hover {
-        background-color: #121619 !important;
-        color: #00C853 !important;
-    }
-
-    [data-testid="stSidebar"] button[kind="primary"] {
-        background-color: #00C853 !important;
-        color: #050505 !important;
-        font-weight: 600 !important;
-    }
-
+    [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #1C2621; }
+    [data-testid="stSidebar"] button { border-radius: 8px !important; padding: 15px !important; border: none !important; display: flex !important; justify-content: flex-start !important; transition: background-color 0.3s !important; }
+    [data-testid="stSidebar"] button p { font-size: 1.25rem !important; margin: 0 !important; }
+    [data-testid="stSidebar"] button[kind="secondary"] { background-color: transparent !important; color: #e2e8f0 !important; }
+    [data-testid="stSidebar"] button[kind="secondary"]:hover { background-color: #121619 !important; color: #00C853 !important; }
+    [data-testid="stSidebar"] button[kind="primary"] { background-color: #00C853 !important; color: #050505 !important; font-weight: 600 !important; }
     h1, h2, h3 { color: #00C853 !important; }
 </style>
 ''', unsafe_allow_html=True)
 
 # ==========================================
-# 2. DADOS E MEMÓRIA
+# 2. SISTEMA DE ARMAZENAMENTO PERMANENTE (CSV)
+# ==========================================
+ARQUIVO_CSV = "dados_organize.csv"
+
+def carregar_dados():
+    # Verifica se o ficheiro já existe. Se existir, carrega os dados.
+    if os.path.exists(ARQUIVO_CSV):
+        return pd.read_csv(ARQUIVO_CSV).to_dict('records')
+    return [] # Retorna uma lista vazia se for a primeira vez
+
+def guardar_dados(dados):
+    # Transforma a lista num formato de tabela e guarda no ficheiro
+    if dados:
+        df = pd.DataFrame(dados)
+        df.to_csv(ARQUIVO_CSV, index=False)
+
+# ==========================================
+# 3. DADOS E MEMÓRIA
 # ==========================================
 categorias_map = {
     "Alimentação": ("mercado", "lanche", "ifood", "pizza", "restaurante", "comida", "padaria", "cantina"),
@@ -74,8 +60,9 @@ dicas_financeiras = [
     "Não use o cartão de crédito como extensão do seu salário."
 ]
 
+# Inicializa as transações a partir do ficheiro CSV em vez de começar do zero
 if "transacoes" not in st.session_state:
-    st.session_state.transacoes = []
+    st.session_state.transacoes = carregar_dados()
     
 if "mensagens_chat" not in st.session_state:
     st.session_state.mensagens_chat = [
@@ -84,42 +71,31 @@ if "mensagens_chat" not in st.session_state:
 
 if "menu_navegacao" not in st.session_state:
     st.session_state.menu_navegacao = "💬 Chat de Lançamentos"
-
 if "mudar_pagina" not in st.session_state:
     st.session_state.mudar_pagina = None
-
 if st.session_state.mudar_pagina:
     st.session_state.menu_navegacao = st.session_state.mudar_pagina
     st.session_state.mudar_pagina = None
-
 if "dica_atual" not in st.session_state:
     st.session_state.dica_atual = random.choice(dicas_financeiras)
 
 # ==========================================
-# 3. BARRA LATERAL (MENU DE NAVEGAÇÃO)
+# 4. BARRA LATERAL (MENU DE NAVEGAÇÃO)
 # ==========================================
 st.sidebar.markdown("<h1 style='text-align: center; margin-bottom: 30px;'>💸 Organizé</h1>", unsafe_allow_html=True)
 
-if st.sidebar.button(
-    "💬 Chat de Lançamentos", 
-    use_container_width=True, 
-    type="primary" if st.session_state.menu_navegacao == "💬 Chat de Lançamentos" else "secondary"
-):
+if st.sidebar.button("💬 Chat de Lançamentos", use_container_width=True, type="primary" if st.session_state.menu_navegacao == "💬 Chat de Lançamentos" else "secondary"):
     st.session_state.mudar_pagina = "💬 Chat de Lançamentos"
     st.rerun()
 
-if st.sidebar.button(
-    "📊 Dashboard e Relatórios", 
-    use_container_width=True, 
-    type="primary" if st.session_state.menu_navegacao == "📊 Dashboard e Relatórios" else "secondary"
-):
+if st.sidebar.button("📊 Dashboard e Relatórios", use_container_width=True, type="primary" if st.session_state.menu_navegacao == "📊 Dashboard e Relatórios" else "secondary"):
     st.session_state.mudar_pagina = "📊 Dashboard e Relatórios"
     st.rerun()
 
 st.sidebar.divider()
 
-total_entradas_geral = sum(t["Valor"] for t in st.session_state.transacoes if t["Tipo"] == "Entrada")
-total_saidas_geral = sum(t["Valor"] for t in st.session_state.transacoes if t["Tipo"] == "Saída")
+total_entradas_geral = sum(float(t["Valor"]) for t in st.session_state.transacoes if t["Tipo"] == "Entrada")
+total_saidas_geral = sum(float(t["Valor"]) for t in st.session_state.transacoes if t["Tipo"] == "Saída")
 saldo_geral = total_entradas_geral - total_saidas_geral
 cor_saldo = "#00C853" if saldo_geral >= 0 else "#FF5252"
 
@@ -133,7 +109,7 @@ st.sidebar.markdown(f"""
 st.sidebar.info(f"💡 **Dica do Dia:**\n\n{st.session_state.dica_atual}")
 
 # ==========================================
-# 4. PÁGINA 1: O CHAT DA IA
+# 5. PÁGINA 1: O CHAT DA IA
 # ==========================================
 if st.session_state.menu_navegacao == "💬 Chat de Lançamentos":
     
@@ -150,7 +126,6 @@ if st.session_state.menu_navegacao == "💬 Chat de Lançamentos":
         
     for msg in mensagens_para_exibir:
         if msg["role"] == "user":
-            # Aumentámos o max-width para 85% para ficar melhor no telemóvel
             st.markdown(f"""
             <div style='display: flex; justify-content: flex-end; margin-bottom: 25px;'>
                 <div style='background: linear-gradient(135deg, #2D3748, #1A202C); color: white; padding: 12px 18px; border-radius: 20px 20px 0px 20px; max-width: 85%; font-size: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid #4A5568;'>
@@ -167,7 +142,6 @@ if st.session_state.menu_navegacao == "💬 Chat de Lançamentos":
             </div>
             """, unsafe_allow_html=True)
 
-    # Espaçamento vazio no fundo para o teclado do telemóvel não tapar as mensagens
     st.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True)
 
     if prompt := st.chat_input("Digite a sua movimentação (ou diga 'organizé')..."):
@@ -204,7 +178,6 @@ if st.session_state.menu_navegacao == "💬 Chat de Lançamentos":
                             if match_parcial:
                                 categoria = cat
                                 break
-                            
                             correspondencia = difflib.get_close_matches(palavra_digitada, palavras_chave, n=1, cutoff=0.6)
                             if correspondencia:
                                 categoria = cat
@@ -220,6 +193,9 @@ if st.session_state.menu_navegacao == "💬 Chat de Lançamentos":
                     "Descrição original": prompt
                 })
                 
+                # GUARDA AS ALTERAÇÕES NO FICHEIRO IMEDIATAMENTE
+                guardar_dados(st.session_state.transacoes)
+                
                 if tipo == "Entrada":
                     resposta = f"💰 Sucesso! R$ {valor:.2f} adicionado como {categoria}."
                 else:
@@ -229,7 +205,7 @@ if st.session_state.menu_navegacao == "💬 Chat de Lançamentos":
             st.rerun()
 
 # ==========================================
-# 5. PÁGINA 2: DASHBOARD E RELATÓRIOS
+# 6. PÁGINA 2: DASHBOARD E RELATÓRIOS
 # ==========================================
 elif st.session_state.menu_navegacao == "📊 Dashboard e Relatórios":
     st.title("Resumo Financeiro")
@@ -238,6 +214,8 @@ elif st.session_state.menu_navegacao == "📊 Dashboard e Relatórios":
         st.info("Nenhuma movimentação registada ainda. Vá ao menu Chat e digite um gasto para ativar o dashboard!")
     else:
         df = pd.DataFrame(st.session_state.transacoes)
+        # Assegura que o pandas lê o valor como número para os cálculos
+        df["Valor"] = pd.to_numeric(df["Valor"]) 
         df["Data_Obj"] = pd.to_datetime(df["Data"], format="%d/%m/%Y")
         df["Mês/Ano"] = df["Data_Obj"].dt.strftime("%m/%Y")
         
@@ -262,7 +240,6 @@ elif st.session_state.menu_navegacao == "📊 Dashboard e Relatórios":
             saldo = total_entradas - total_saidas
             cor_saldo_dashboard = "#00C853" if saldo >= 0 else "#FF5252"
             
-            # CSS Grid para manter os 3 cartões lado a lado no telemóvel
             st.markdown(f"""
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 30px;">
                 <div style="background-color: #121619; border: 1px solid #1f2924; border-top: 3px solid #00C853; padding: 10px; border-radius: 8px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
@@ -286,7 +263,6 @@ elif st.session_state.menu_navegacao == "📊 Dashboard e Relatórios":
                 gastos_agrupados = df_saidas.groupby("Categoria")["Valor"].sum().reset_index()
                 paleta_contraste = ['#00E676', '#0A3D18', '#B9F6CA', '#198754', '#E0F2F1', '#042812']
                 
-                # Remoção de colunas limitadoras para que o gráfico utilize 100% do ecrã do telemóvel
                 fig = px.pie(
                     gastos_agrupados, 
                     values='Valor', 
@@ -296,7 +272,6 @@ elif st.session_state.menu_navegacao == "📊 Dashboard e Relatórios":
                     color_discrete_sequence=paleta_contraste
                 )
                 
-                # A legenda foi movida para a base do gráfico (horizontal) e as margens foram removidas
                 fig.update_layout(
                     plot_bgcolor='rgba(0,0,0,0)', 
                     paper_bgcolor='rgba(0,0,0,0)', 
